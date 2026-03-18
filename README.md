@@ -1,6 +1,9 @@
 # ESP32 Wi-Fi Audio Waveform Analyzer Dashboard
 
-A complete embedded + web system that captures analog audio from a phone through an ESP32, processes the signal to detect waveform characteristics, and streams the data in real time over Wi-Fi to a web dashboard.
+A complete embedded + web system that captures analog audio from a phone through an ESP32, processes the signal to detect waveform 
+characteristics,and streams the data in real time over Wi-Fi to a web dashboard.
+A real-time audio signal processing system that captures live audio,and visualizes waveform + frequency-domain features+ FFT analysis
+in a WebGL dashboard.
 
 ## System Overview
 
@@ -10,22 +13,48 @@ Phone (audio source) → Analog Front-End → ESP32 (MicroPython) → WiFi → B
 
 ## Features
 
-- **Real-time Audio Capture**: 8kHz sampling rate with 12-bit ADC resolution
+- **Real-time Audio Capture**: 8kHz sampling rate with 12-bit ADC resolution,48000khz sampling rate for device audio capture
 - **Live Waveform Display**: Scrolling oscilloscope visualization
-- **Audio Metrics**: BPM estimation, RMS amplitude, peak detection, frequency analysis
 - **Session Management**: Automatic recording and historical data storage
 - **WebSocket Streaming**: Low-latency real-time data transmission
-- **Professional Dashboard**: Dark navy theme with responsive design
-- **SQLite Database**: Persistent session storage and retrieval
+- **Professional Dashboard**: Dark navy theme with responsive and animated design
+- **SQLite Database**:Persistent session storage and retrieval of export functionality for session data (CSV)
+- **exports**: exports of real time data and averages for all computed metrics 
 
-## Quick Start
+### Audio metrics:(averages and real time values computed)
+
+RMS (signal energy)
+
+frequency
+
+Peak amplitude
+
+Dominant frequency (FFT)
+
+Spectral centroid(FFT)
+
+Spectral rolloff(FFT)
+
+Spectral flatness(FFT)
+
+BPM
+
+### Docker Setup
+
+Build image
+docker build -t audio-analyzer .
+Run backend
+docker run -p 8000:8000 audio-analyzer
+
+⚠️ Note: Audio capture should be run on host machine for best compatibility.
+(run the demo_audio_capture.py script to test dashboard functionality with audio direct from device)
 
 ### Prerequisites
 
 - ESP32 development board
 - Computer with Python 3.8+ and Node.js 16+
 - WiFi network
-- Audio source (phone with AUX output)
+- Audio source
 
 ### Hardware Setup
 
@@ -40,31 +69,6 @@ Phone (audio source) → Analog Front-End → ESP32 (MicroPython) → WiFi → B
 2. **ESP32 Setup**:
    - Install MicroPython firmware
    - Upload firmware files from `micropython/` directory
-
-### Software Setup
-
-1. **Backend Installation**:
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-2. **Frontend Installation**:
-```bash
-cd dashboard
-npm install
-npm run dev
-```
-
-3. **ESP32 Configuration**:
-   - Edit `micropython/main.py`:
-     - Set `WIFI_SSID` and `WIFI_PASSWORD`
-     - Set `BACKEND_IP` to your computer's IP address
-
-4. **Access Dashboard**:
-   - Open browser to `http://localhost:3000`
-   - Backend API available at `http://localhost:8000`
 
 ## Project Structure
 
@@ -94,116 +98,16 @@ npm run dev
 │   └── README.md         # Frontend documentation
 └── README.md            # This file
 ```
+### Software system architecture
 
-## Configuration
-
-### ESP32 Configuration
-Edit `micropython/main.py`:
-```python
-WIFI_SSID = "YOUR_WIFI_SSID"
-WIFI_PASSWORD = "YOUR_WIFI_PASSWORD"
-BACKEND_IP = "192.168.1.100"  # Your computer's IP
-```
-
-### Backend Configuration
-- Database: SQLite `audio_sessions.db` (auto-created)
-- Port: 8000 (configurable)
-- CORS: Enabled for all origins (development)
-
-### Frontend Configuration
-- WebSocket: `ws://localhost:8000/ws/audio`
-- API: `http://localhost:8000/api`
-- Development server: `http://localhost:3000`
-
-## API Endpoints
-
-### REST API
-- `GET /` - Dashboard frontend
-- `GET /api/health` - Health check and connection stats
-- `GET /api/sessions` - All sessions (active + historical)
-- `GET /api/sessions/{id}` - Specific session details
-- `GET /api/metrics/current` - Current metrics for active sessions
-
-### WebSocket Endpoints
-- `/ws/audio` - Dashboard clients
-- `/ws/esp32` - ESP32 devices
-
-## Performance Specifications
-
-- **Sampling Rate**: 8 kHz
-- **ADC Resolution**: 12-bit (0-4095)
-- **Target Latency**: 50-150ms
-- **Data Throughput**: ~50KB/sec
-- **Waveform Buffer**: 5 seconds (40,000 samples)
-- **Update Rate**: 20-30 FPS
-
-## Troubleshooting
-
-### Common Issues
-
-1. **ESP32 Won't Connect**:
-   - Check WiFi credentials
-   - Verify network availability
-   - Monitor serial output
-
-2. **Backend Connection Failed**:
-   - Confirm backend IP address
-   - Check firewall settings
-   - Verify port 8000 is accessible
-
-3. **No Audio Data**:
-   - Test analog front-end circuit
-   - Verify GPIO34 connection
-   - Check signal level (0-3.3V range)
-
-4. **Dashboard Not Loading**:
-   - Ensure backend is running
-   - Check browser console for errors
-   - Verify WebSocket connection
-
-### Debug Mode
-
-Enable verbose logging:
-- ESP32: Monitor serial output
-- Backend: Check console logs
-- Frontend: Open browser developer tools
-
-## Development
-
-### Backend Development
-```bash
-cd backend
-uvicorn main:app --reload --log-level debug
-```
-
-### Frontend Development
-```bash
-cd dashboard
-npm run dev
-```
-
-### ESP32 Development
-- Use MicroPython REPL for testing
-- Monitor serial output for debugging
-- Test modules individually
-
-## Production Deployment
-
-For production use:
-1. Build frontend: `npm run build`
-2. Use production WSGI server (Gunicorn/Uvicorn)
-3. Configure reverse proxy (Nginx)
-4. Set up SSL certificates
-5. Configure firewall rules
-
-## License
-
-ISC License - feel free to use for personal and commercial projects.
-
-## Support
-
-For issues and questions:
-1. Check individual component README files
-2. Review troubleshooting section
-3. Test components individually
-4. Verify network connectivity
+Audio Source (Mic / Stereo Mix) 
+↓ 
+demo_audio_listener.py (PyAudio) 
+↓ 
+WebSocket Stream 
+↓
+FastAPI Backend
+↓
+Metrics Engine (FFT + DSP)
+↓
+Frontend Dashboard (WebGL)
