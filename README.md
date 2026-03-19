@@ -19,12 +19,6 @@ from raw audio acquisition to frequency/time-domain visualization and analysis
 - **SQLite Database**:Persistent session storage and retrieval of export functionality for session data (CSV)
 - **Exports**: exports of real time data and averages for all computed metrics 
 
-⚡ Real-time audio capture
-
-Continuous streaming from microphone input
-
-Low-latency processing pipeline
-
 ### FFT-based frequency analysis
 
 Converts time-domain audio signals into frequency spectrum
@@ -39,47 +33,27 @@ Displays raw time-domain signal alongside FFT output
 
 Useful for understanding signal characteristics
 
-### Live data processing pipeline
-
-Buffered streaming architecture
-
-Continuous updates without blocking UI
-
-### Signal processing concepts implemented
-
-Windowing
-
-Frequency binning
-
-Magnitude computation from complex FFT output
-
 ### Audio metrics: (averages and real time values computed)
 
-RMS (signal energy)
-
-frequency
-
-Peak amplitude
-
-Dominant frequency (FFT)
-
-Spectral centroid(FFT)
-
-Spectral rolloff(FFT)
-
-Spectral flatness(FFT)
-
-BPM
+- RMS (signal energy)
+- frequency
+- Peak amplitude
+- Dominant frequency (FFT)
+- Spectral centroid(FFT)
+- Spectral rolloff(FFT)
+- Spectral flatness(FFT)
+- BPM
 
 ### Docker Setup
+Build & run
+- docker-compose up --build
 
-Build image
-docker build -t audio-analyzer .
-Run backend
-docker run -p 8000:8000 audio-analyzer
+Open the app
+- Frontend: http://localhost:3000
 
-Note: Audio capture should be run on host machine for best compatibility.
-(run the demo_audio_capture.py script to test dashboard functionality with audio direct from device)
+
+Stop containers
+- docker-compose down
 
 ### Prerequisites
 
