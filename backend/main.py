@@ -29,7 +29,8 @@ websocket_manager = WebSocketManager(session_manager)
 BASE_DIR = Path(__file__).resolve().parent
 DIST_DIR = BASE_DIR.parent / "dashboard" / "dist"
 
-app.mount("/static", StaticFiles(directory=str(DIST_DIR)), name="static")
+if DIST_DIR.exists():
+    app.mount("/static", StaticFiles(directory=str(DIST_DIR)), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def root():

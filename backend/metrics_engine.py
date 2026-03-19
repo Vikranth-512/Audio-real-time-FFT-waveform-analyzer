@@ -7,11 +7,16 @@ from collections import deque
 class MetricsEngine:
 
     SAMPLE_RATE = 48000
-    OFFSET = 0
-    SCALE = 1.0 / 32768.0
+    # Demo sender uses 12-bit style samples centered at 2048 (0..4095).
+    # Use OFFSET=2048 so silence (baseline) becomes zero after normalization
+    # and SCALE maps to [-1, 1] range approximately.
+    OFFSET = 2048
+    SCALE = 1.0 / 2048.0
 
     PACKET_SIZE = 1024
     ENVELOPE_RATE = SAMPLE_RATE / PACKET_SIZE
+
+    SILENCE_THRESHOLD = 0.005
 
     def __init__(self):
 
@@ -34,13 +39,10 @@ class MetricsEngine:
 
         data = (data - self.OFFSET) * self.SCALE
 
-        # DC removal
         data = data - np.mean(data)
 
-        # high-pass (remove drift / ghost low freq)
         data = np.concatenate(([0], np.diff(data)))
 
-        # windowing
         data = data * self._hann_window(n)
 
         spec = np.fft.rfft(data)
@@ -58,6 +60,9 @@ class MetricsEngine:
         if len(valid) == 0:
             return 0.0
 
+        if np.max(mags[valid]) < 1e-6:
+            return 0.0
+
         idx = valid[int(np.argmax(mags[valid]))]
 
         return float(freqs[idx])
@@ -72,7 +77,6 @@ class MetricsEngine:
             return 0.0
 
         m = mags[valid] ** 2
-
         s = float(np.sum(m))
 
         if s <= 1e-12:
@@ -90,18 +94,15 @@ class MetricsEngine:
             return 0.0
 
         m = mags[valid] ** 2
-
         total = float(np.sum(m))
 
         if total <= 1e-12:
             return 0.0
 
         target = total * pct
-
         cumsum = np.cumsum(m)
 
         idx = int(np.searchsorted(cumsum, target))
-
         idx = min(max(idx, 0), len(valid) - 1)
 
         return float(freqs[valid][idx])
@@ -117,8 +118,7 @@ class MetricsEngine:
 
         m = mags[valid].astype(float) + 1e-12
 
-        geo = float(np.exp(np.mean(np.log(m)))
-)
+        geo = float(np.exp(np.mean(np.log(m))))
         arith = float(np.mean(m))
 
         if arith <= 1e-12:
@@ -170,6 +170,9 @@ class MetricsEngine:
 
         energy /= len(normalized)
 
+        if energy < self.SILENCE_THRESHOLD:
+            return
+
         self.energy_buffer.append(energy)
 
     def autocorrelation_bpm(self):
@@ -179,53 +182,43 @@ class MetricsEngine:
 
         energies = np.array(self.energy_buffer, dtype=float)
 
-        # --- Step 1: Smooth envelope ---
         kernel_size = 5
         kernel = np.ones(kernel_size) / kernel_size
         smooth = np.convolve(energies, kernel, mode='same')
 
-        # --- Step 2: Dynamic threshold ---
         mean_energy = np.mean(smooth)
         std_energy = np.std(smooth)
 
         threshold = mean_energy + 0.5 * std_energy
 
-        # --- Step 3: Peak detection ---
         peaks = []
 
         for i in range(1, len(smooth) - 1):
             if smooth[i] > threshold and smooth[i] > smooth[i - 1] and smooth[i] > smooth[i + 1]:
                 peaks.append(i)
 
-        # --- Step 4: Need enough peaks ---
         if len(peaks) < 3:
             return 0.0
 
-        # --- Step 5: Convert peak intervals to BPM ---
         env_rate = self.ENVELOPE_RATE
-
         intervals = []
 
         for i in range(1, len(peaks)):
             interval = (peaks[i] - peaks[i - 1]) / env_rate
 
-            if 0.3 < interval < 1.5:  # valid beat range (40–200 BPM)
+            if 0.3 < interval < 1.5:
                 intervals.append(interval)
 
         if len(intervals) < 2:
             return 0.0
 
         avg_interval = sum(intervals) / len(intervals)
-
         bpm = 60.0 / avg_interval
 
-        # --- Step 6: Stability filter ---
         if bpm < 40 or bpm > 200:
             return 0.0
 
         return round(bpm, 1)
-
-
 
     def calculate_metrics(self, samples: List[int], timestamp: float) -> Dict[str, float]:
 
@@ -241,17 +234,28 @@ class MetricsEngine:
                 "spectral_flatness": 0.0,
             }
 
-        self.sample_buffer.extend(samples)
-
         normalized = self._normalize(samples)
 
         rms = self.calculate_rms(normalized)
-        peak = self.calculate_peak(normalized)
 
+        if rms < self.SILENCE_THRESHOLD:
+            return {
+                "rms": 0.0,
+                "peak": 0.0,
+                "frequency": 0.0,
+                "bpm": 0.0,
+                "peak_frequency": 0.0,
+                "spectral_centroid": 0.0,
+                "spectral_rolloff": 0.0,
+                "spectral_flatness": 0.0,
+            }
+
+        self.sample_buffer.extend(samples)
+
+        peak = self.calculate_peak(normalized)
         frequency = self.estimate_frequency(normalized)
 
         self.update_energy_envelope(normalized)
-
         bpm = self.autocorrelation_bpm()
 
         freqs, mags = self._fft_magnitude(1024)
@@ -261,9 +265,18 @@ class MetricsEngine:
         spectral_rolloff = self.compute_spectral_rolloff(freqs, mags, pct=0.85)
         spectral_flatness = self.compute_spectral_flatness(freqs, mags)
 
+        # apply no artificial gain by default
+        gain = 1
+        rms *= gain
+        peak *= gain
+
+        rms = min(rms, 1.0)
+        peak = min(peak, 1.0)
+
         return {
-            "rms": round(rms * 10, 3),
-            "peak": round(peak * 10, 3),
+            # report normalized rms/peak in range ~0..1 (no *10 scaling)
+            "rms": round(rms, 3),
+            "peak": round(peak, 3),
             "frequency": round(frequency, 2),
             "bpm": bpm,
             "peak_frequency": round(peak_frequency, 2),
@@ -289,9 +302,7 @@ class MetricsEngine:
         avg_bpm = 0.0
 
         if len(self.beat_intervals) >= 2:
-
             avg_interval = sum(self.beat_intervals) / len(self.beat_intervals)
-
             avg_bpm = 60.0 / avg_interval
 
         return {
