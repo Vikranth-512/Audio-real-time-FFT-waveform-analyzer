@@ -1,13 +1,13 @@
-# ESP32 Wi-Fi Audio Waveform Analyzer Dashboard
+# Audio Waveform FFT Analyzer Dashboard
 
-A complete embedded + web system that captures analog audio from a phone through an ESP32, processes the signal to detect waveform 
-characteristics,and streams the data in real time over Wi-Fi to a web dashboard.
+A complete embedded + web system that captures analog audio from a source, processes the signal to detect waveform 
+characteristics,and streams the data in real time with time and frequecy domain analytics over Wi-Fi to a web dashboard.
 
-A high-performance real-time audio visualization tool that captures live microphone input, processes it using Fast Fourier Transform 
+A high-performance real-time audio visualization tool that captures raw samples, processes it using Fast Fourier Transform 
 (FFT), and renders both waveform and frequency-domain representations.
 
 Designed for learning, experimentation, and real-time signal analysis, this project demonstrates the complete pipeline 
-from raw audio acquisition to frequency-domain visualization.
+from raw audio acquisition to frequency/time-domain visualization and analysis
 
 ## Features
 
