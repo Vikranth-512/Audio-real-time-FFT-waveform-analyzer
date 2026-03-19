@@ -2,14 +2,12 @@
 
 A complete embedded + web system that captures analog audio from a phone through an ESP32, processes the signal to detect waveform 
 characteristics,and streams the data in real time over Wi-Fi to a web dashboard.
-A real-time audio signal processing system that captures live audio,and visualizes waveform + frequency-domain features+ FFT analysis
-in a WebGL dashboard.
 
-## System Overview
+A high-performance real-time audio visualization tool that captures live microphone input, processes it using Fast Fourier Transform 
+(FFT), and renders both waveform and frequency-domain representations.
 
-```
-Phone (audio source) → Analog Front-End → ESP32 (MicroPython) → WiFi → Backend (FastAPI) → Dashboard (React)
-```
+Designed for learning, experimentation, and real-time signal analysis, this project demonstrates the complete pipeline 
+from raw audio acquisition to frequency-domain visualization.
 
 ## Features
 
@@ -19,9 +17,43 @@ Phone (audio source) → Analog Front-End → ESP32 (MicroPython) → WiFi → B
 - **WebSocket Streaming**: Low-latency real-time data transmission
 - **Professional Dashboard**: Dark navy theme with responsive and animated design
 - **SQLite Database**:Persistent session storage and retrieval of export functionality for session data (CSV)
-- **exports**: exports of real time data and averages for all computed metrics 
+- **Exports**: exports of real time data and averages for all computed metrics 
 
-### Audio metrics:(averages and real time values computed)
+⚡ Real-time audio capture
+
+Continuous streaming from microphone input
+
+Low-latency processing pipeline
+
+### FFT-based frequency analysis
+
+Converts time-domain audio signals into frequency spectrum
+
+Visualizes amplitude vs frequency in real-time
+
+Real-time display of dominant frequency, spectral centroid, rolloff, flatness, 
+
+### Waveform visualization
+
+Displays raw time-domain signal alongside FFT output
+
+Useful for understanding signal characteristics
+
+### Live data processing pipeline
+
+Buffered streaming architecture
+
+Continuous updates without blocking UI
+
+### Signal processing concepts implemented
+
+Windowing
+
+Frequency binning
+
+Magnitude computation from complex FFT output
+
+### Audio metrics: (averages and real time values computed)
 
 RMS (signal energy)
 
@@ -46,15 +78,12 @@ docker build -t audio-analyzer .
 Run backend
 docker run -p 8000:8000 audio-analyzer
 
-⚠️ Note: Audio capture should be run on host machine for best compatibility.
+Note: Audio capture should be run on host machine for best compatibility.
 (run the demo_audio_capture.py script to test dashboard functionality with audio direct from device)
 
 ### Prerequisites
 
-- ESP32 development board
-- Computer with Python 3.8+ and Node.js 16+
-- WiFi network
-- Audio source
+Python 3.8+ and Node.js 16+
 
 ### Hardware Setup
 
@@ -71,6 +100,8 @@ docker run -p 8000:8000 audio-analyzer
    - Upload firmware files from `micropython/` directory
 
 ## Project Structure
+
+with the exclusion of docker files and demo audio capture script both of which can be found in the main directory
 
 ```
 ├── micropython/          # ESP32 firmware
@@ -98,16 +129,3 @@ docker run -p 8000:8000 audio-analyzer
 │   └── README.md         # Frontend documentation
 └── README.md            # This file
 ```
-### Software system architecture
-
-Audio Source (Mic / Stereo Mix) 
-↓ 
-demo_audio_listener.py (PyAudio) 
-↓ 
-WebSocket Stream 
-↓
-FastAPI Backend
-↓
-Metrics Engine (FFT + DSP)
-↓
-Frontend Dashboard (WebGL)
