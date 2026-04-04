@@ -27,6 +27,7 @@ function App() {
     const [sessionActive, setSessionActive] = useState(false)
     const [activeSessionId, setActiveSessionId] = useState(null)
     const [archivedSessionId, setArchivedSessionId] = useState(null)
+    const [sessionStopped, setSessionStopped] = useState(false)
 
     const [averages, setAverages] = useState(null)
     const [currentSessionId, setCurrentSessionId] = useState(null)
@@ -39,10 +40,7 @@ function App() {
 
     const { isConnected, lastMessage, connectionStatus } = useWebSocket('ws://localhost:8000/ws/audio')
 
-
-
     /* ---------------- WEBSOCKET STREAM ---------------- */
-
     useEffect(() => {
 
         if (!lastMessage) return
@@ -55,42 +53,35 @@ function App() {
             return
         }
 
-        if (data.session_id) {
-            setActiveSessionId(data.session_id)
-            setSessionActive(true)
-            setArchivedSessionId(null)
-            setCurrentSessionId(null)
-            setAverages(null)
-        }
+        console.log("Incoming session:", data.session_id)
+        console.log("Active session:", activeSessionId)
+        console.log("Stopped:", sessionStopped)
 
-        const samples = data.samples || data.data?.samples
+        // CRITICAL CHANGE: Strict session control
+        if (!sessionStopped && data.session_id === activeSessionId) {
+            // Update session only if matches active session and not stopped
+            const samples = data.samples || data.data?.samples
+            const metrics = data.metrics || data.data?.metrics || {}
 
-        if (samples && Array.isArray(samples)) {
+            if (samples && Array.isArray(samples)) {
+                setWaveformData(prev => {
+                    const next = prev.length + samples.length > 40000 ? prev.slice(samples.length) : prev
+                    return [...next, ...samples]
+                })
 
-            setWaveformData(prev => {
-                const next = prev.length + samples.length > 40000 ? prev.slice(samples.length) : prev
-                return [...next, ...samples]
-            })
+                if (!sessionStartTime) {
+                    const ts = Number(data.timestamp)
+                    const start = Number.isFinite(ts)
+                        ? (ts < 1e12 ? ts * 1000 : ts)
+                        : Date.now()
 
-            if (!sessionStartTime) {
-
-                const ts = Number(data.timestamp)
-
-                const start = Number.isFinite(ts)
-                    ? (ts < 1e12 ? ts * 1000 : ts)
-                    : Date.now()
-
-                setSessionStartTime(start)
-                setSessionActive(true)
-                setSessionTime(0)
+                    setSessionStartTime(start)
+                    setSessionActive(true)
+                    setSessionTime(0)
+                }
             }
-        }
 
-        const metrics = data.metrics || data.data?.metrics || {}
-
-        setCurrentMetrics(prev => {
-
-            const next = {
+            setCurrentMetrics(prev => ({
                 bpm: metrics.bpm ?? prev.bpm,
                 rms: metrics.rms ?? prev.rms,
                 peak: metrics.peak ?? prev.peak,
@@ -99,27 +90,19 @@ function App() {
                 spectral_centroid: metrics.spectral_centroid ?? prev.spectral_centroid,
                 spectral_rolloff: metrics.spectral_rolloff ?? prev.spectral_rolloff,
                 spectral_flatness: metrics.spectral_flatness ?? prev.spectral_flatness
-            }
+            }))
+        }
 
-            if (
-                next.bpm === prev.bpm &&
-                next.rms === prev.rms &&
-                next.peak === prev.peak &&
-                next.frequency === prev.frequency &&
-                next.peak_frequency === prev.peak_frequency &&
-                next.spectral_centroid === prev.spectral_centroid &&
-                next.spectral_rolloff === prev.spectral_rolloff &&
-                next.spectral_flatness === prev.spectral_flatness
-            ) {
-                return prev
-            }
+        // Allow first session initialization only if not stopped
+        if (!activeSessionId && !sessionStopped && data.session_id) {
+            setActiveSessionId(data.session_id)
+            setSessionActive(true)
+            setArchivedSessionId(null)
+            setCurrentSessionId(null)
+            setAverages(null)
+        }
 
-            return next
-        })
-
-    }, [lastMessage, sessionStartTime])
-
-
+    }, [lastMessage, sessionStartTime, sessionStopped, activeSessionId])
 
     /* ---------------- DASHBOARD GLOW ---------------- */
 
@@ -138,7 +121,7 @@ function App() {
 
     useEffect(() => {
 
-        if (!sessionActive || !sessionStartTime) return
+        if (!sessionActive || !sessionStartTime || sessionStopped) return
 
         timerRef.current = setInterval(() => {
 
@@ -157,7 +140,7 @@ function App() {
 
         }
 
-    }, [sessionActive, sessionStartTime])
+    }, [sessionActive, sessionStartTime, sessionStopped])
 
 
 
@@ -171,6 +154,22 @@ function App() {
     }, [])
 
 
+
+    /* ---------------- START NEW SESSION ---------------- */
+
+    const handleStartNewSession = useCallback(() => {
+        // Only reset sessionStopped when explicitly starting new session
+        setSessionStopped(false)
+        setSessionActive(false)
+        setActiveSessionId(null)
+        setArchivedSessionId(null)
+        setCurrentSessionId(null)
+        setAverages(null)
+        setWaveformData([])
+        setSessionStartTime(null)
+        setSessionTime(0)
+        setWaveformResetKey(prev => prev + 1)
+    }, [])
 
     /* ---------------- STOP SESSION ---------------- */
 
@@ -187,13 +186,15 @@ function App() {
                     timerRef.current = null
                 }
 
+          
+                setSessionStopped(true)
+
                 setSessionActive(false)
                 setArchivedSessionId(activeSessionId)
                 setActiveSessionId(null)
                 setSessionStartTime(null)
 
             })
-            .catch(err => console.error('Stop failed', err))
 
     }, [activeSessionId])
 
@@ -383,9 +384,14 @@ function App() {
 
             <div className="controls-row" style={{ justifyContent: "space-between" }}>
 
-                <button className="btn" onClick={handleRefreshWaveform}>
-                    Refresh Waveform
-                </button>
+                <div style={{ display: "flex", gap: "12px" }}>
+                    <button className="btn" onClick={handleRefreshWaveform}>
+                        Refresh Waveform
+                    </button>
+                    <button className="btn btn-start" onClick={handleStartNewSession}>
+                        Start New Session
+                    </button>
+                </div>
 
                 <div style={{ display: "flex", gap: "12px" }}>
 
